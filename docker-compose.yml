@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_DB: economic_activities_reporting_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: economic_activities_reporting_system_app
+    entrypoint: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn economic_activities_reporting_system.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 300"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
