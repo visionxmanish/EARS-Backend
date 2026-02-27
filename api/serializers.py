@@ -191,27 +191,24 @@ class EconomicDataProgressUserSerializer(serializers.ModelSerializer):
     def get_contributors_list(self, obj):
         return [{'id': u.id, 'name': u.get_full_name()} for u in obj.contributors.all()]
 
-        
     def create(self, validated_data):
-        # Extract nested and M2M data first
         economic_entries_data = validated_data.pop('economic_entries', [])
         contributors_data = validated_data.pop('contributors', [])
 
-        # Create main record (no M2M fields here)
+
         progress = EconomicDataProgressUser.objects.create(**validated_data)
 
-        # ✅ Set ManyToMany contributors properly after object is created
         if contributors_data:
             progress.contributors.set(contributors_data)
 
-        # ✅ Create nested economic entries
+
         for entry_data in economic_entries_data:
             EconomicDataEntry.objects.create(progress=progress, **entry_data)
 
         return progress
 
     def update(self, instance, validated_data):
-        # Handle nested + M2M updates
+
         economic_entries_data = validated_data.pop('economic_entries', None)
         contributors_data = validated_data.pop('contributors', None)
 
@@ -219,11 +216,11 @@ class EconomicDataProgressUserSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
 
-        # ✅ Properly set ManyToMany contributors
+
         if contributors_data is not None:
             instance.contributors.set(contributors_data)
 
-        # ✅ Refresh nested entries if provided
+
         if economic_entries_data is not None:
             instance.economic_entries.all().delete()
             for entry_data in economic_entries_data:
