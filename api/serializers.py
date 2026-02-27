@@ -162,7 +162,6 @@ class EconomicDataEntrySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-
 class EconomicDataProgressUserSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
     fiscal_year_name = serializers.CharField(source='fiscal_year.year', read_only=True)
@@ -173,8 +172,10 @@ class EconomicDataProgressUserSerializer(serializers.ModelSerializer):
     report_type_name = serializers.CharField(source='report_type.name', read_only=True)
     approved_by_name = serializers.CharField(source='approved_by.get_full_name', read_only=True)
     contributors_list = serializers.SerializerMethodField()
-    economic_entries = EconomicDataEntrySerializer(many=True, read_only=True)
     
+    # ✅ allow nested write
+    economic_entries = EconomicDataEntrySerializer(many=True, required=False)
+
     class Meta:
         model = EconomicDataProgressUser
         fields = [
@@ -185,11 +186,50 @@ class EconomicDataProgressUserSerializer(serializers.ModelSerializer):
             'report_type_name', 'status', 'approved_by', 'approved_by_name',
             'approved_at', 'economic_entries', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-    
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+
     def get_contributors_list(self, obj):
         return [{'id': u.id, 'name': u.get_full_name()} for u in obj.contributors.all()]
 
+        
+    def create(self, validated_data):
+        # Extract nested and M2M data first
+        economic_entries_data = validated_data.pop('economic_entries', [])
+        contributors_data = validated_data.pop('contributors', [])
+
+        # Create main record (no M2M fields here)
+        progress = EconomicDataProgressUser.objects.create(**validated_data)
+
+        # ✅ Set ManyToMany contributors properly after object is created
+        if contributors_data:
+            progress.contributors.set(contributors_data)
+
+        # ✅ Create nested economic entries
+        for entry_data in economic_entries_data:
+            EconomicDataEntry.objects.create(progress=progress, **entry_data)
+
+        return progress
+
+    def update(self, instance, validated_data):
+        # Handle nested + M2M updates
+        economic_entries_data = validated_data.pop('economic_entries', None)
+        contributors_data = validated_data.pop('contributors', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # ✅ Properly set ManyToMany contributors
+        if contributors_data is not None:
+            instance.contributors.set(contributors_data)
+
+        # ✅ Refresh nested entries if provided
+        if economic_entries_data is not None:
+            instance.economic_entries.all().delete()
+            for entry_data in economic_entries_data:
+                EconomicDataEntry.objects.create(progress=instance, **entry_data)
+
+        return instance
 
 class UserNotificationSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)

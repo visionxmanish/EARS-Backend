@@ -198,12 +198,12 @@ class DataCategoryViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def by_sector(self, request):
-        """Get categories by sector"""
+        """Get categories by sector by filtering out the parent categories"""
         sector_id = request.query_params.get('sector_id')
         if not sector_id:
             return Response({'error': 'sector_id parameter required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        categories = DataCategory.objects.filter(sector_id=sector_id, parent__isnull=True)
+        categories = DataCategory.objects.filter(sector_id=sector_id)
         serializer = self.get_serializer(categories, many=True)
         return Response(serializer.data)
 
